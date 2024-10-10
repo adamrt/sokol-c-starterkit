@@ -6,7 +6,69 @@
 #include "bin.h"
 #include "model.h"
 
-#define BIN_MAX_RESOURCES 25
+#define BIN_SECTOR_HEADER_SIZE (24)
+#define BIN_SECTOR_SIZE (2048)
+#define BIN_SECTOR_SIZE_RAW (2352)
+
+#define BIN_FILE_MAX_SIZE (131072)
+
+#define BIN_GNS_FILE_MAX_SIZE (2388)
+#define BIN_GNS_RECORD_MAX_NUM (25)
+#define BIN_GNS_RECORD_SIZE (20)
+
+typedef struct {
+    uint8_t data[BIN_FILE_MAX_SIZE];
+    size_t size;
+} bytes_t;
+
+typedef struct {
+    uint8_t data[BIN_SECTOR_SIZE];
+} sector_t;
+
+typedef struct {
+    uint8_t data[BIN_FILE_MAX_SIZE];
+    size_t offset;
+    size_t size;
+} file_t;
+
+typedef enum {
+    FILE_TYPE_NONE = 0x0000,
+    FILE_TYPE_TEXTURE = 0x1701,
+    FILE_TYPE_MESH_PRIMARY = 0x2E01,
+    FILE_TYPE_MESH_OVERRIDE = 0x2F01,
+    FILE_TYPE_MESH_ALT = 0x3001,
+    FILE_TYPE_END = 0x3101,
+} file_type_e;
+
+typedef enum {
+    TIME_DAY = 0x0,
+    TIME_NIGHT = 0x1,
+} time_e;
+
+typedef enum {
+    WEATHER_NONE = 0x0,
+    WEATHER_NONE_ALT = 0x1,
+    WEATHER_NORMAL = 0x2,
+    WEATHER_STRONG = 0x3,
+    WEATHER_VERY_STRONG = 0x4,
+} weather_e;
+
+typedef struct {
+    file_type_e type;
+    size_t sector;
+    size_t length;
+
+    time_e time;
+    weather_e weather;
+    int layout;
+
+    uint8_t data[BIN_GNS_RECORD_SIZE];
+} record_t;
+
+typedef struct {
+    record_t records[BIN_GNS_RECORD_MAX_NUM];
+    int count;
+} records_t;
 
 // Each resource is a file that contains a single type of data (mesh, texture,
 // etc). Each resource is related to a specific time, weather, and layout.
@@ -30,9 +92,9 @@ static resource_key_t fallback_key_base = (resource_key_t) {
 };
 
 // Forward declarations
-void add_resource(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key, void* resource);
-void* find_resource(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key);
-void* find_resource_or_fallback(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key);
+void add_resource(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key, void* resource);
+void* find_resource(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key);
+void* find_resource_or_fallback(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key);
 
 static uint8_t bin_u8(file_t* f)
 {
@@ -544,7 +606,7 @@ void merge_meshes(mesh_t* dst, mesh_t* src)
 
 model_t bin_map(FILE* bin, int num)
 {
-    resource_t resources[BIN_MAX_RESOURCES];
+    resource_t resources[BIN_GNS_RECORD_MAX_NUM];
     int resource_count = 0;
 
     file_t gns_file = bin_file(bin, map_list[num].sector, BIN_GNS_FILE_MAX_SIZE);
@@ -630,15 +692,15 @@ model_t bin_map(FILE* bin, int num)
     return model;
 }
 
-void add_resource(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key, void* resource)
+void add_resource(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key, void* resource)
 {
-    assert(count < BIN_MAX_RESOURCES);
+    assert(count < BIN_GNS_RECORD_MAX_NUM);
     resources[count].key = key;
     resources[count].valid = true;
     resources[count].resource_data = resource;
 }
 
-void* find_resource(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key)
+void* find_resource(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key)
 {
     for (int i = 0; i < count; i++) {
         resource_key_t mk = resources[i].key;
@@ -649,7 +711,7 @@ void* find_resource(resource_t resources[static BIN_MAX_RESOURCES], int count, r
     return NULL;
 }
 
-void* find_resource_or_fallback(resource_t resources[static BIN_MAX_RESOURCES], int count, resource_key_t key)
+void* find_resource_or_fallback(resource_t resources[static BIN_GNS_RECORD_MAX_NUM], int count, resource_key_t key)
 {
     void* resource_data = find_resource(resources, count, key);
     if (resource_data != NULL) {
