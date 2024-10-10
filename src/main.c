@@ -167,7 +167,12 @@ static void engine_event(const sapp_event* event)
 {
     bool handled = snk_handle_event(event);
     if (handled) {
-        return;
+        if (event->type == SAPP_EVENTTYPE_MOUSE_MOVE
+            || event->type == SAPP_EVENTTYPE_MOUSE_SCROLL
+            || event->type == SAPP_EVENTTYPE_MOUSE_DOWN
+            || event->type == SAPP_EVENTTYPE_MOUSE_UP) {
+            return;
+        }
     }
 
     switch (event->type) {
